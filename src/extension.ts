@@ -1,26 +1,45 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
+import jenkins from "./api";
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+const setup = async () => {
+  const configFiles = await vscode.workspace.findFiles(".launchpadrc.json", "/node_modules/", 1);
+  const jenkinsKey = vscode.workspace.getConfiguration("launchpad").get("jenkinsKey");
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "launchpad" is now active!');
+  if (!jenkinsKey) {
+    vscode.window.showInformationMessage("Launchpad: Jenkins API key not found");
+  }
+  if (configFiles[0]) {
+    const configFile = await vscode.workspace.openTextDocument(vscode.Uri.file(configFiles[0].path));
+    const text = configFile.getText();
+    let json = null;
+    if (text?.length > 0) {
+      json = JSON.parse(text);
+    }
+    return { config: json, jenkinsKey };
+  } else {
+    vscode.window.showInformationMessage("Launchpad: Config file not found");
+  }
+  return { config: null, jenkinsKey };
+};
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('launchpad.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from Launchpad CD!');
-	});
+export async function activate(context: vscode.ExtensionContext) {
+  const { config, jenkinsKey } = await setup();
+  let jenkinsInstance: ReturnType<typeof jenkins>;
 
-	context.subscriptions.push(disposable);
+  if (config && jenkinsKey !== null && typeof jenkinsKey === "string") {
+    jenkinsInstance = jenkins(config.jenkins.username, jenkinsKey, config.jenkins.url);
+  }
+
+  let disposable = vscode.commands.registerCommand("launchpad.build", () => {
+    vscode.window.showInputBox({ ignoreFocusOut: true, title: "Enter Build Parameters", placeHolder: "server:alpha, test:true" });
+    jenkinsInstance
+      .getLastBuildInfo(config.jenkins.jobs[0].name)
+      .then((data) => console.log(data))
+      .catch((e) => console.error(e));
+  });
+
+  context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
+// When is this called?
 export function deactivate() {}
