@@ -30,7 +30,7 @@ export async function activate(context: vscode.ExtensionContext) {
     jenkinsInstance = jenkins(config.jenkins.username, jenkinsKey, config.jenkins.url);
   }
 
-  let disposable = vscode.commands.registerCommand("launchpad.build", () => {
+  const buildCommand = vscode.commands.registerCommand("launchpad.build", () => {
     vscode.window.showInputBox({ ignoreFocusOut: true, title: "Enter Build Parameters", placeHolder: "server:alpha, test:true" });
     jenkinsInstance
       .getLastBuildInfo(config.jenkins.jobs[0].name)
@@ -38,7 +38,7 @@ export async function activate(context: vscode.ExtensionContext) {
       .catch((e) => console.error(e));
   });
 
-  context.subscriptions.push(disposable);
+  context.subscriptions.push(buildCommand);
 }
 
 // When is this called?
