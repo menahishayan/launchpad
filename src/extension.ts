@@ -40,8 +40,9 @@ export async function activate(context: vscode.ExtensionContext) {
   const { config, jenkinsKey } = await setup();
   let jenkinsInstance: ReturnType<typeof jenkins>;
 
-  if (config && jenkinsKey !== null && typeof jenkinsKey === "string") {
-    jenkinsInstance = jenkins(config.jenkins.username, jenkinsKey, config.jenkins.url);
+  const username: string | undefined = vscode.workspace.getConfiguration("launchpad").get("jenkinsUsername");
+  if (config && jenkinsKey !== null && typeof jenkinsKey === "string" && username) {
+    jenkinsInstance = jenkins(username, jenkinsKey, config.jenkins.url);
   }
 
   const gitExtension = vscode.extensions.getExtension<GitExtension>("vscode.git")?.exports;
@@ -63,7 +64,6 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window
       .showInputBox({ ignoreFocusOut: true, title: "Enter Build Parameters", placeHolder: "server:alpha;test:true", value: jobParamObj["Branches"] })
       .then((data) => {
-        // APP:schedule_render_override_fix;LANDING:main;DASHBOARD:override-debounce;PRODUCER:main;CONSUMER:main
         if (data) {
           jenkinsInstance
             .createBuildWithParams(config.jenkins.jobs[0].name, jobParamObj)
