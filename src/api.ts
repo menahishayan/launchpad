@@ -22,7 +22,7 @@ const jenkins = (username: string, token: string, url: string) => {
     getJobInfo: (job: string) => wrapper(instance, "job_info", [job]),
     getAllViews: () => wrapper(instance, "all_views"),
     showCurrentQueue: () => wrapper(instance, "job_info", [], { token }),
-    createBuildWithParams: (job: string, params: JSON) => wrapper(instance, "build_with_params", [job], { token, ...params }),
+    createBuildWithParams: (job: string, params: any) => wrapper(instance, "build_with_params", [job], { token, ...params }),
   };
 };
 

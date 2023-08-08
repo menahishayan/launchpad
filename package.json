@@ -2,7 +2,12 @@
   "name": "launchpad",
   "displayName": "Launchpad CD",
   "description": "Build/deploy on Jenkins via VSCode",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "author": {
+    "name": "Menahi Shayan",
+    "email": "menahi.shayan@gmail.com",
+    "url": "https://www.github.com/menahishayan"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },

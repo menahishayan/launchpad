@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import jenkins from "./api";
+import { GitExtension } from "./git";
 
 const setup = async () => {
   const configFiles = await vscode.workspace.findFiles(".launchpadrc.json", "/node_modules/", 1);
@@ -22,6 +23,19 @@ const setup = async () => {
   return { config: null, jenkinsKey };
 };
 
+const parseJobParams = (param: any, branchName: string | undefined) => {
+  switch (param.type) {
+    case "select":
+      return param.values[0];
+    case "text":
+      return param.default.replace("${branch_name}", branchName);
+    case "checkbox":
+      return param.default;
+    default:
+      return "";
+  }
+};
+
 export async function activate(context: vscode.ExtensionContext) {
   const { config, jenkinsKey } = await setup();
   let jenkinsInstance: ReturnType<typeof jenkins>;
@@ -30,12 +44,33 @@ export async function activate(context: vscode.ExtensionContext) {
     jenkinsInstance = jenkins(config.jenkins.username, jenkinsKey, config.jenkins.url);
   }
 
+  const gitExtension = vscode.extensions.getExtension<GitExtension>("vscode.git")?.exports;
+
+  let branchName: string | undefined;
+  if (gitExtension) {
+    const api = gitExtension.getAPI(1);
+
+    const repo = api.repositories[0];
+    const head = repo.state.HEAD;
+
+    branchName = head?.name;
+  }
+
+  const jobParams = config.jenkins.jobs[0].params;
+  const jobParamObj: any = Object.keys(jobParams).reduce((acc, key) => ({ ...acc, [key]: parseJobParams(jobParams[key], branchName) }), {});
+
   const buildCommand = vscode.commands.registerCommand("launchpad.build", () => {
-    vscode.window.showInputBox({ ignoreFocusOut: true, title: "Enter Build Parameters", placeHolder: "server:alpha, test:true" });
-    jenkinsInstance
-      .getLastBuildInfo(config.jenkins.jobs[0].name)
-      .then((data) => console.log(data))
-      .catch((e) => console.error(e));
+    vscode.window
+      .showInputBox({ ignoreFocusOut: true, title: "Enter Build Parameters", placeHolder: "server:alpha;test:true", value: jobParamObj["Branches"] })
+      .then((data) => {
+        // APP:schedule_render_override_fix;LANDING:main;DASHBOARD:override-debounce;PRODUCER:main;CONSUMER:main
+        if (data) {
+          jenkinsInstance
+            .createBuildWithParams(config.jenkins.jobs[0].name, jobParamObj)
+            .then((data) => console.log(data))
+            .catch((e) => console.error(e));
+        }
+      });
   });
 
   context.subscriptions.push(buildCommand);
