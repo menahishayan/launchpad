@@ -53,6 +53,18 @@ const parseJobParams = (param: any, branchName: string | undefined) => {
   }
 };
 
+const getJobProgress = async ({ jenkinsInstance, job, queueId }: { jenkinsInstance: ReturnType<typeof jenkins>; job: string; queueId: number }) => {
+  const jobInfo = await jenkinsInstance.getJobInfo(job);
+  if (jobInfo) {
+    const build = jobInfo.builds.find((build) => build.queueId === queueId);
+    if (build?.inProgress) {
+      const statusBarItem = vscode.window.createStatusBarItem(1, 4);
+      statusBarItem.text = "$(loading~spin) Building";
+      statusBarItem.show();
+    }
+  }
+};
+
 export async function activate(context: vscode.ExtensionContext) {
   const { config, jenkinsKey, username } = await setup(context);
   let jenkinsInstance: ReturnType<typeof jenkins>;
@@ -76,27 +88,22 @@ export async function activate(context: vscode.ExtensionContext) {
   const jobParams = config?.jenkins.jobs[0].params || {};
   const jobParamObj: any = Object.keys(jobParams).reduce((acc, key) => ({ ...acc, [key]: parseJobParams(jobParams[key], branchName) }), {});
 
-  const buildCommand = vscode.commands.registerCommand("launchpad.build", () => {
+  const buildCommand = vscode.commands.registerCommand("launchpad.build", async () => {
     if (!jenkinsInstance) {
-      vscode.window.showErrorMessage("Unable to connect to the Jenkins Server");
+      await vscode.window.showErrorMessage("Unable to connect to the Jenkins Server");
     } else {
-      vscode.window
-        .showInputBox({
-          ignoreFocusOut: true,
-          title: "Enter Build Parameters",
-          placeHolder: "server:alpha;test:true",
-          value: jobParamObj["Branches"],
-        })
-        .then((data) => {
-          if (data) {
-            jenkinsInstance
-              .createBuildWithParams(config?.jenkins.jobs[0].name || "", jobParamObj)
-              .then((data) => console.log(data))
-              .catch((e) => {
-                vscode.window.showErrorMessage("Failed to build");
-              });
-          }
-        });
+      const parameterInput1 = await vscode.window.showInputBox({
+        ignoreFocusOut: true,
+        title: "Enter Build Parameters",
+        placeHolder: "server:alpha;test:true",
+        value: jobParamObj["Branches"],
+      });
+      if (parameterInput1 && config?.jenkins.jobs[0].name) {
+        jenkinsInstance
+          .createBuildWithParams(config?.jenkins.jobs[0].name, jobParamObj)
+          .then(({ queueId }) => getJobProgress({ jenkinsInstance, job: config?.jenkins.jobs[0].name, queueId }))
+          .catch(() => vscode.window.showErrorMessage("Failed to build"));
+      }
     }
   });
 

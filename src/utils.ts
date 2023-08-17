@@ -11,3 +11,10 @@ export type TConfig = {
     jobs: TJenkinsJobs[];
   };
 };
+
+export type TCreateBuildWithParams = {
+  body: string;
+  location: string;
+  statusCode: number;
+  queueId: number;
+};
