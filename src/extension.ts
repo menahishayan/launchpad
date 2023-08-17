@@ -1,13 +1,30 @@
 import * as vscode from "vscode";
 import jenkins from "./api";
 import { GitExtension } from "./git";
+import { TConfig } from "./utils";
 
-const setup = async () => {
+type TSetup = Promise<{
+  config?: TConfig;
+  jenkinsKey?: string;
+  username?: string;
+}>;
+
+const setup = async (context: vscode.ExtensionContext): TSetup => {
   const configFiles = await vscode.workspace.findFiles(".launchpadrc.json", "/node_modules/", 1);
-  const jenkinsKey = vscode.workspace.getConfiguration("launchpad").get("jenkinsKey");
+  let jenkinsKey = await context.secrets.get("jenkinsKey");
+  let username = await context.secrets.get("jenkinsUsername");
 
   if (!jenkinsKey) {
-    vscode.window.showInformationMessage("Launchpad: Jenkins API key not found");
+    jenkinsKey = await vscode.window.showInputBox({ password: true, title: "Jenkins API Key", ignoreFocusOut: true });
+    if (jenkinsKey) {
+      context.secrets.store("jenkinsKey", jenkinsKey);
+    }
+  }
+  if (!username) {
+    username = await vscode.window.showInputBox({ title: "Jenkins Username", ignoreFocusOut: true });
+    if (username) {
+      context.secrets.store("jenkinsUsername", username);
+    }
   }
   if (configFiles[0]) {
     const configFile = await vscode.workspace.openTextDocument(vscode.Uri.file(configFiles[0].path));
@@ -20,7 +37,7 @@ const setup = async () => {
   } else {
     vscode.window.showInformationMessage("Launchpad: Config file not found");
   }
-  return { config: null, jenkinsKey };
+  return { config: undefined, jenkinsKey, username };
 };
 
 const parseJobParams = (param: any, branchName: string | undefined) => {
@@ -37,10 +54,9 @@ const parseJobParams = (param: any, branchName: string | undefined) => {
 };
 
 export async function activate(context: vscode.ExtensionContext) {
-  const { config, jenkinsKey } = await setup();
+  const { config, jenkinsKey, username } = await setup(context);
   let jenkinsInstance: ReturnType<typeof jenkins>;
 
-  const username: string | undefined = vscode.workspace.getConfiguration("launchpad").get("jenkinsUsername");
   if (config && jenkinsKey !== null && typeof jenkinsKey === "string" && username) {
     jenkinsInstance = jenkins(username, jenkinsKey, config.jenkins.url);
   }
@@ -57,20 +73,31 @@ export async function activate(context: vscode.ExtensionContext) {
     branchName = head?.name;
   }
 
-  const jobParams = config.jenkins.jobs[0].params;
+  const jobParams = config?.jenkins.jobs[0].params || {};
   const jobParamObj: any = Object.keys(jobParams).reduce((acc, key) => ({ ...acc, [key]: parseJobParams(jobParams[key], branchName) }), {});
 
   const buildCommand = vscode.commands.registerCommand("launchpad.build", () => {
-    vscode.window
-      .showInputBox({ ignoreFocusOut: true, title: "Enter Build Parameters", placeHolder: "server:alpha;test:true", value: jobParamObj["Branches"] })
-      .then((data) => {
-        if (data) {
-          jenkinsInstance
-            .createBuildWithParams(config.jenkins.jobs[0].name, jobParamObj)
-            .then((data) => console.log(data))
-            .catch((e) => console.error(e));
-        }
-      });
+    if (!jenkinsInstance) {
+      vscode.window.showErrorMessage("Unable to connect to the Jenkins Server");
+    } else {
+      vscode.window
+        .showInputBox({
+          ignoreFocusOut: true,
+          title: "Enter Build Parameters",
+          placeHolder: "server:alpha;test:true",
+          value: jobParamObj["Branches"],
+        })
+        .then((data) => {
+          if (data) {
+            jenkinsInstance
+              .createBuildWithParams(config?.jenkins.jobs[0].name || "", jobParamObj)
+              .then((data) => console.log(data))
+              .catch((e) => {
+                vscode.window.showErrorMessage("Failed to build");
+              });
+          }
+        });
+    }
   });
 
   context.subscriptions.push(buildCommand);

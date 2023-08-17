@@ -2,7 +2,7 @@
   "name": "launchpad",
   "displayName": "Launchpad CD",
   "description": "Build/deploy on Jenkins via VSCode",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Menahi Shayan",
     "email": "menahi.shayan@gmail.com",
@@ -38,7 +38,8 @@
               "null"
             ],
             "default": null,
-            "description": "Specifies the API key to access the Jenkins server"
+            "description": "Specifies the API key to access the Jenkins server",
+            "secret": true
           }
         }
       },
@@ -51,7 +52,8 @@
               "null"
             ],
             "default": null,
-            "description": "Specifies the username to access the Jenkins server"
+            "description": "Specifies the username to access the Jenkins server",
+            "secret": true
           }
         }
       }
