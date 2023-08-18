@@ -5,14 +5,14 @@ import { TConfig } from "./utils";
 
 type TSetup = Promise<{
   config?: TConfig;
-  jenkinsKey?: string;
-  username?: string;
+  jenkinsInstance?: ReturnType<typeof jenkins>;
 }>;
 
 const setup = async (context: vscode.ExtensionContext): TSetup => {
   const configFiles = await vscode.workspace.findFiles(".launchpadrc.json", "/node_modules/", 1);
   let jenkinsKey = await context.secrets.get("jenkinsKey");
   let username = await context.secrets.get("jenkinsUsername");
+  let jenkinsInstance;
 
   if (!jenkinsKey) {
     jenkinsKey = await vscode.window.showInputBox({ password: true, title: "Jenkins API Key", ignoreFocusOut: true });
@@ -33,11 +33,15 @@ const setup = async (context: vscode.ExtensionContext): TSetup => {
     if (text?.length > 0) {
       json = JSON.parse(text);
     }
-    return { config: json, jenkinsKey };
+
+    if (username && jenkinsKey) {
+      jenkinsInstance = jenkins(username, jenkinsKey, json.jenkins.url);
+    }
+    return { config: json, jenkinsInstance };
   } else {
     vscode.window.showInformationMessage("Launchpad: Config file not found");
   }
-  return { config: undefined, jenkinsKey, username };
+  return { config: undefined, jenkinsInstance };
 };
 
 const parseJobParams = (param: any, branchName: string | undefined) => {
@@ -66,12 +70,7 @@ const getJobProgress = async ({ jenkinsInstance, job, queueId }: { jenkinsInstan
 };
 
 export async function activate(context: vscode.ExtensionContext) {
-  const { config, jenkinsKey, username } = await setup(context);
-  let jenkinsInstance: ReturnType<typeof jenkins>;
-
-  if (config && jenkinsKey !== null && typeof jenkinsKey === "string" && username) {
-    jenkinsInstance = jenkins(username, jenkinsKey, config.jenkins.url);
-  }
+  const { config, jenkinsInstance } = await setup(context);
 
   const gitExtension = vscode.extensions.getExtension<GitExtension>("vscode.git")?.exports;
 
